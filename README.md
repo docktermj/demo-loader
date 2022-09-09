@@ -1,1 +1,1 @@
-# demo-loader
+# load-demo
