@@ -2,20 +2,7 @@
 
 '''
 # -----------------------------------------------------------------------------
-# template-python.py Example python skeleton.
-# Can be used as a boiler-plate to build new python scripts.
-# This skeleton implements the following features:
-#   1) "command subcommand" command line.
-#   2) A structured command line parser and "-help"
-#   3) Configuration via:
-#      3.1) Command line options
-#      3.2) Environment variables
-#      3.3) Configuration file
-#      3.4) Default
-#   4) Messages dictionary
-#   5) Logging and Log Level support.
-#   6) Entry / Exit log messages.
-#   7) Docker support.
+# load-demo.py
 # -----------------------------------------------------------------------------
 '''
 
@@ -29,6 +16,7 @@ import os
 import signal
 import sys
 import time
+from pathlib import Path
 
 # Import from https://pypi.org/
 
@@ -36,8 +24,8 @@ import time
 
 __all__ = []
 __version__ = "1.0.0"  # See https://www.python.org/dev/peps/pep-0396/
-__date__ = '2019-07-16'
-__updated__ = '2022-05-18'
+__date__ = '2022-09-09'
+__updated__ = '2022-09-09'
 
 # See https://github.com/Senzing/knowledge-base/blob/main/lists/senzing-product-ids.md
 
@@ -59,20 +47,20 @@ CONFIGURATION_LOCATOR = {
         "env": "SENZING_DEBUG",
         "cli": "debug"
     },
-    "password": {
+    "demo_data_dir": {
+        "default": "/data",
+        "env": "SENZING_DEMO_DATA_DIR",
+        "cli": "demo-data-dir"
+    },
+    "demo_name": {
+        "default": "load-demo",
+        "env": "SENZING_DEMO_NAME",
+        "cli": "demo-name"
+    },
+    "engine_configuration_json": {
         "default": None,
-        "env": "SENZING_PASSWORD",
-        "cli": "password"
-    },
-    "senzing_dir": {
-        "default": "/opt/senzing",
-        "env": "SENZING_DIR",
-        "cli": "senzing-dir"
-    },
-    "sleep_time_in_seconds": {
-        "default": 0,
-        "env": "SENZING_SLEEP_TIME_IN_SECONDS",
-        "cli": "sleep-time-in-seconds"
+        "env": "SENZING_ENGINE_CONFIGURATION_JSON",
+        "cli": "engine-configuration-json"
     },
     "subcommand": {
         "default": None,
@@ -83,7 +71,6 @@ CONFIGURATION_LOCATOR = {
 # Enumerate keys in 'configuration_locator' that should not be printed to the log.
 
 KEYS_TO_REDACT = [
-    "password",
 ]
 
 # -----------------------------------------------------------------------------
@@ -95,35 +82,14 @@ def get_parser():
     ''' Parse commandline arguments. '''
 
     subcommands = {
-        'task1': {
+        'all': {
             "help": 'Example task #1.',
             "argument_aspects": ["common"],
             "arguments": {
-                "--senzing-dir": {
-                    "dest": "senzing_dir",
-                    "metavar": "SENZING_DIR",
-                    "help": "Location of Senzing. Default: /opt/senzing"
-                },
-            },
-        },
-        'task2': {
-            "help": 'Example task #2.',
-            "argument_aspects": ["common"],
-            "arguments": {
-                "--password": {
-                    "dest": "password",
-                    "metavar": "SENZING_PASSWORD",
-                    "help": "Example of information redacted in the log. Default: None"
-                },
-            },
-        },
-        'sleep': {
-            "help": 'Do nothing but sleep. For Docker testing.',
-            "arguments": {
-                "--sleep-time-in-seconds": {
-                    "dest": "sleep_time_in_seconds",
-                    "metavar": "SENZING_SLEEP_TIME_IN_SECONDS",
-                    "help": "Sleep time in seconds. DEFAULT: 0 (infinite)"
+                "--demo-data-dir": {
+                    "dest": "demo_data_dir",
+                    "metavar": "SENZING_DEMO_DATA_DIR",
+                    "help": "Location of data to be loaded. Default: /data"
                 },
             },
         },
@@ -142,6 +108,11 @@ def get_parser():
             "--debug": {
                 "dest": "debug",
                 "action": "store_true",
+                "help": "Enable debugging. (SENZING_DEBUG) Default: False"
+            },
+            "--demo-name": {
+                "dest": "demo_name",
+                "metavar": "SENZING_DEMO_NAME",
                 "help": "Enable debugging. (SENZING_DEBUG) Default: False"
             },
             "--engine-configuration-json": {
@@ -193,36 +164,18 @@ MESSAGE_DEBUG = 900
 
 MESSAGE_DICTIONARY = {
     "100": "senzing-" + SENZING_PRODUCT_ID + "{0:04d}I",
-    "292": "Configuration change detected.  Old: {0} New: {1}",
     "293": "For information on warnings and errors, see https://github.com/Senzing/stream-loader#errors",
-    "294": "Version: {0}  Updated: {1}",
-    "295": "Sleeping infinitely.",
-    "296": "Sleeping {0} seconds.",
     "297": "Enter {0}",
     "298": "Exit {0}",
     "299": "{0}",
     "300": "senzing-" + SENZING_PRODUCT_ID + "{0:04d}W",
     "499": "{0}",
     "500": "senzing-" + SENZING_PRODUCT_ID + "{0:04d}E",
-    "695": "Unknown database scheme '{0}' in database url '{1}'",
-    "696": "Bad SENZING_SUBCOMMAND: {0}.",
     "697": "No processing done.",
     "698": "Program terminated with error.",
     "699": "{0}",
     "700": "senzing-" + SENZING_PRODUCT_ID + "{0:04d}E",
-    "885": "License has expired.",
-    "886": "G2Engine.addRecord() bad return code: {0}; JSON: {1}",
-    "888": "G2Engine.addRecord() G2ModuleNotInitialized: {0}; JSON: {1}",
-    "889": "G2Engine.addRecord() G2ModuleGenericException: {0}; JSON: {1}",
-    "890": "G2Engine.addRecord() Exception: {0}; JSON: {1}",
-    "891": "Original and new database URLs do not match. Original URL: {0}; Reconstructed URL: {1}",
-    "892": "Could not initialize G2Product with '{0}'. Error: {1}",
-    "893": "Could not initialize G2Hasher with '{0}'. Error: {1}",
-    "894": "Could not initialize G2Diagnostic with '{0}'. Error: {1}",
-    "895": "Could not initialize G2Audit with '{0}'. Error: {1}",
-    "896": "Could not initialize G2ConfigMgr with '{0}'. Error: {1}",
-    "897": "Could not initialize G2Config with '{0}'. Error: {1}",
-    "898": "Could not initialize G2Engine with '{0}'. Error: {1}",
+    "701": "{0} environment variable not set.",
     "899": "{0}",
     "900": "senzing-" + SENZING_PRODUCT_ID + "{0:04d}D",
     "998": "Debugging enabled.",
@@ -343,7 +296,6 @@ def get_configuration(subcommand, args):
     # Special case: Change integer strings to integers.
 
     integers = [
-        'sleep_time_in_seconds'
     ]
     for integer in integers:
         integer_string = result.get(integer)
@@ -358,14 +310,12 @@ def validate_configuration(config):
     user_warning_messages = []
     user_error_messages = []
 
-    # Perform subcommand specific checking.
-
     subcommand = config.get('subcommand')
 
-    if subcommand in ['task1', 'task2']:
+    if subcommand in ['all']:
 
-        if not config.get('senzing_dir'):
-            user_error_messages.append(message_error(414))
+        if config.get('engine_configuration_json') is None:
+            user_error_messages.append(message_error(701, 'SENZING_ENGINE_CONFIGURATION_JSON'))
 
     # Log warning messages.
 
@@ -396,6 +346,97 @@ def redact_configuration(config):
             result.pop(key)
         except Exception:
             pass
+    return result
+
+# -----------------------------------------------------------------------------
+# Senzing services.
+# -----------------------------------------------------------------------------
+
+
+def get_g2_config(config, g2_config_name="loader-G2-config"):
+    '''Get the G2Config resource.'''
+    logging.debug(message_debug(950, sys._getframe().f_code.co_name))
+    try:
+        g2_configuration_json = get_g2_configuration_json(config)
+        result = G2Config()
+
+        # Backport methods from earlier Senzing versions.
+
+        if config.get('senzing_sdk_version_major') == 2:
+            result.init = result.initV2
+
+        # Initialize G2Config.
+
+        try:
+            result.init(g2_config_name, g2_configuration_json, config.get('debug'))
+        except Exception as err:
+            logging.error(message_error(812, g2_config_name, g2_configuration_json, err))
+            raise err
+    except G2ModuleException as err:
+        exit_error(897, g2_configuration_json, err)
+    logging.debug(message_debug(951, sys._getframe().f_code.co_name))
+    return result
+
+
+def get_g2_configuration_manager(config, g2_configuration_manager_name="loader-G2-configuration-manager"):
+    '''Get the G2ConfigMgr resource.'''
+    logging.debug(message_debug(950, sys._getframe().f_code.co_name))
+    try:
+        g2_configuration_json = get_g2_configuration_json(config)
+        result = G2ConfigMgr()
+
+        # Backport methods from earlier Senzing versions.
+
+        if config.get('senzing_sdk_version_major') == 2:
+            result.init = result.initV2
+
+        # Initialize G2ConfigMgr.
+
+        try:
+            result.init(g2_configuration_manager_name, g2_configuration_json, config.get('debug'))
+        except Exception as err:
+            logging.error(message_error(813, g2_configuration_manager_name, g2_configuration_json, err))
+            raise err
+    except G2ModuleException as err:
+        exit_error(896, g2_configuration_json, err)
+    logging.debug(message_debug(951, sys._getframe().f_code.co_name))
+    return result
+
+
+def get_g2_engine(config, g2_engine_name="loader-G2-engine"):
+    '''Get the G2Engine resource.'''
+    logging.debug(message_debug(950, sys._getframe().f_code.co_name))
+    try:
+        g2_configuration_json = get_g2_configuration_json(config)
+        result = G2Engine()
+        logging.debug(message_debug(950, "g2_engine.init()"))
+
+        # Backport methods from earlier Senzing versions.
+
+        if config.get('senzing_sdk_version_major') == 2:
+            result.init = result.initV2
+            result.reinit = result.reinitV2
+
+        # Initialize G2Engine.
+
+        try:
+            result.init(g2_engine_name, g2_configuration_json, config.get('debug'))
+        except Exception as err:
+            logging.error(message_error(811, g2_engine_name, g2_engine_name, err))
+            raise err
+        logging.debug(message_debug(951, "g2_engine.init()"))
+        config['last_configuration_check'] = time.time()
+    except G2ModuleException as err:
+        exit_error(898, g2_configuration_json, err)
+
+    if config.get('prime_engine'):
+        try:
+            logging.debug(message_debug(950, "g2_engine.primeEngine()"))
+            result.primeEngine()
+            logging.debug(message_debug(951, "g2_engine.primeEngine()"))
+        except G2ModuleGenericException as err:
+            exit_error(881, g2_configuration_json, err)
+    logging.debug(message_debug(951, sys._getframe().f_code.co_name))
     return result
 
 # -----------------------------------------------------------------------------
@@ -459,6 +500,125 @@ def exit_silently():
     ''' Exit program. '''
     sys.exit(0)
 
+
+def g2_add_data_source(g2_config, default_configuration_handle, parameters):
+    g2_config.addDataSource(default_configuration_handle, parameters)
+
+
+def process_g2c_line(g2_config, default_configuration_handle, line):
+
+    line_split = line.split()
+    command = line_split[0]
+    parameters = " ".join(line_split[1:])
+
+    if command in SENZING_COMMAND_FUNCTIONS.keys():
+        SENZING_COMMAND_FUNCTIONS[command](g2_config, default_configuration_handle, parameters)
+    else:
+        logging.info(message_info(999, "Bad command: {0}".format(command)))
+
+
+def process_json_line(g2_engine, line):
+
+    line_dictionary = json.loads(line)
+    data_source = line_dictionary.get('DATA_SOURCE')
+    record_id = line_dictionary.get('RECORD_ID')
+    try:
+        g2_engine.addRecord(data_source, record_id, line)
+    except Exception as err:
+        logging.error(message_error(804, data_source, record_id, err))
+        raise err
+
+
+def process_g2c_file(g2_configuration_manager, default_configuration_handle, filename):
+    ''' Process a file of Senzing configuration. '''
+    with open(filename) as file:
+        for line in file:
+            process_g2c_line(g2_configuration_manager, default_configuration_handle, line)
+
+
+def process_json_file(g2_engine, filename):
+    ''' Process a file of JSON. '''
+    with open(filename) as file:
+        for line in file:
+            process_json_line(g2_engine, line)
+
+
+def process_redo():
+    pass
+
+
+def process_g2c_files(config, demo_data_dir):
+    ''' Process a file of Senzing configuration. '''
+
+    demo_name = config.get('demo_name')
+
+    # Get Senzing G2 resources.
+
+    g2_config = get_g2_config(config)
+    g2_configuration_manager = get_g2_configuration_manager(config)
+
+    # Get default configuration identifier.
+
+    default_configuration_id_bytearray = bytearray()
+    g2_configuration_manager.getDefaultConfigID(default_configuration_id_bytearray)
+
+    # Get default configuration as JSON string.
+
+    default_configuration_id_int = int(default_configuration_id_bytearray)
+    default_configuration_bytearray = bytearray()
+    g2_configuration_manager.getConfig(default_configuration_id_int, default_configuration_bytearray)
+    default_configuration_json = default_configuration_bytearray.decode()
+
+    # Create a G2Config object with the default configuration.
+
+    default_configuration_handle = g2_config.load(default_configuration_json)
+
+    # Loop through files.
+
+    files = Path(demo_data_dir).glob('*.g2c')
+    for file in files:
+        process_g2c_file(g2_configuration_manager, default_configuration_handle, file)
+
+    # Get JSON string with new datasource added.
+
+    new_configration_bytearray = bytearray()
+    g2_config.save(default_configuration_handle, new_configration_bytearray)
+    new_configuration_json = new_configration_bytearray.decode()
+
+    # Add configuration to G2 database SYS_CFG table.
+
+    new_configuration_comments = "Updated configuration for {0}".format(demo_name)
+    new_configuration_id_bytearray = bytearray()
+    g2_configuration_manager.addConfig(new_configuration_json, new_configuration_comments, new_configuration_id_bytearray)
+
+    # Set Default.
+
+    g2_configuration_manager.setDefaultConfigID(new_configuration_id_bytearray)
+
+
+def process_json_files(config, demo_data_dir):
+    ''' Process a file of Senzing configuration. '''
+
+    g2_engine = get_g2_engine(config)
+
+    files = Path(demo_data_dir).glob('*.json')
+    for file in files:
+        process_json_file(g2_engine, file)
+
+# -----------------------------------------------------------------------------
+# task_* functions
+#   Common function signature: task_XXX(config)
+# -----------------------------------------------------------------------------
+
+
+def task_load_all(config):
+    ''' Enumerate files and process. '''
+
+    demo_data_dir = config.get('demo_data_dir')
+    process_g2c_files(config, demo_data_dir)
+    process_json_files(config, demo_data_dir)
+    process_redo()
+
 # -----------------------------------------------------------------------------
 # do_* functions
 #   Common function signature: do_XXX(args)
@@ -481,12 +641,13 @@ def do_docker_acceptance_test(subcommand, args):
     logging.info(exit_template(config))
 
 
-def do_task1(subcommand, args):
+def do_all(subcommand, args):
     ''' Do a task. '''
 
     # Get context from CLI, environment variables, and ini files.
 
     config = get_configuration(subcommand, args)
+    # TODO: validate_configuration(config)
 
     # Prolog.
 
@@ -494,60 +655,7 @@ def do_task1(subcommand, args):
 
     # Do work.
 
-    print("senzing-dir: {senzing_dir}; debug: {debug}".format(**config))
-
-    # Epilog.
-
-    logging.info(exit_template(config))
-
-
-def do_task2(subcommand, args):
-    ''' Do a task. Print the complete config object'''
-
-    # Get context from CLI, environment variables, and ini files.
-
-    config = get_configuration(subcommand, args)
-
-    # Prolog.
-
-    logging.info(entry_template(config))
-
-    # Do work.
-
-    config_json = json.dumps(config, sort_keys=True, indent=4)
-    print(config_json)
-
-    # Epilog.
-
-    logging.info(exit_template(config))
-
-
-def do_sleep(subcommand, args):
-    ''' Sleep.  Used for debugging. '''
-
-    # Get context from CLI, environment variables, and ini files.
-
-    config = get_configuration(subcommand, args)
-
-    # Prolog.
-
-    logging.info(entry_template(config))
-
-    # Pull values from configuration.
-
-    sleep_time_in_seconds = config.get('sleep_time_in_seconds')
-
-    # Sleep.
-
-    if sleep_time_in_seconds > 0:
-        logging.info(message_info(296, sleep_time_in_seconds))
-        time.sleep(sleep_time_in_seconds)
-
-    else:
-        sleep_time_in_seconds = 3600
-        while True:
-            logging.info(message_info(295))
-            time.sleep(sleep_time_in_seconds)
+    task_load_all(config)
 
     # Epilog.
 
@@ -589,6 +697,12 @@ if __name__ == "__main__":
     signal.signal(signal.SIGTERM, bootstrap_signal_handler)
     signal.signal(signal.SIGINT, bootstrap_signal_handler)
 
+    # XXX
+
+    SENZING_COMMAND_FUNCTIONS = {
+        'addDataSource': g2_add_data_source,
+    }
+
     # Parse the command line arguments.
 
     SUBCOMMAND = os.getenv("SENZING_SUBCOMMAND", None)
@@ -600,10 +714,6 @@ if __name__ == "__main__":
         ARGS = argparse.Namespace(subcommand=SUBCOMMAND)
     else:
         PARSER.print_help()
-        if len(os.getenv("SENZING_DOCKER_LAUNCHED", "")) > 0:
-            SUBCOMMAND = "sleep"
-            ARGS = argparse.Namespace(subcommand=SUBCOMMAND)
-            do_sleep(SUBCOMMAND, ARGS)
         exit_silently()
 
     # Catch interrupts. Tricky code: Uses currying.

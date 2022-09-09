@@ -6,7 +6,7 @@ disable=
     too-many-branches,
     too-many-locals,
 good-names=
-    template-python
+    load-demo
 ignore=
     __init__.py,
 notes=
